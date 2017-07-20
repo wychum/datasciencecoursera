@@ -47,12 +47,12 @@ library(knitr)
 set.seed(12345)
 
 ## URL for the data. Test data is what we used at the end for the 20 test cases
-training <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
-testing <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+trainingURL <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testingURL <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
 
 ##Loading the CSV
-trainingData <- read.csv(url(training), na.strings=c("NA","#DIV/0!",""))
-testingData <- read.csv(url(testing), na.strings=c("NA","#DIV/0!",""))
+trainingData <- read.csv(url(trainingURL), na.strings=c("NA","#DIV/0!",""))
+testingData <- read.csv(url(testingURL), na.strings=c("NA","#DIV/0!",""))
 ```
 
 ### Split the trining data set into Training and Test
@@ -100,27 +100,27 @@ clean1 <- colnames(myTraining)
 clean2 <- colnames(myTraining[,-58])
 
 myTesting <- myTesting[clean1]
-testing <- testing[clean2]
+testingData <- testingData[clean2]
 
 ## show how much testing data remaining
 dim(myTesting)
 
 ##show how much final testing data remaining
-dim(testing)
+dim(testingData)
 ```
 
 ## Reorder the data by type
 ```{r reordering}
-for (i in 1:length(testing) ) {
+for (i in 1:length(testingData) ) {
     for(j in 1:length(myTraining)) {
-        if( length( grep(names(myTraining[i]), names(testing)[j]) ) == 1)  {
-            class(testing[j]) <- class(myTraining[i])
+        if( length( grep(names(myTraining[i]), names(testingData)[j]) ) == 1)  {
+            class(testingData[j]) <- class(myTraining[i])
         }      
     }      
 }
 
-testing <- rbind(myTraining[2, -58] , testing)
-testing <- testing[-1,]
+testingData <- rbind(myTraining[2, -58] , testingData)
+testingData <- testingData[-1,]
 ```
 
 ##Prediction using Decision Trees
@@ -142,7 +142,7 @@ cmtree
 ##Prediction using Random Forests
 ```{r prediction_rndF}
 set.seed(12345)
-modFitRndForest <- randomForest(classe ~ ., data=myTraining)
+modFitRndForest <- randomForest(classe ~ ., data=myTraining, method="class")
 predictionRndForest <- predict(modFitRndForest, myTesting, type = "class")
 cmrf <- confusionMatrix(predictionRndForest, myTesting$classe)
 cmrf
@@ -157,7 +157,7 @@ With about 0.1% error rate.
 Lets apply it to our test data for the final test.
 
 ```{r prediction_final}
-predictionRndForest <- predict(modFitRndForest, testing, type = "class")
+predictionRndForest <- predict(modFitRndForest, testingData, type = "class")
 predictionRndForest
 ```
 
