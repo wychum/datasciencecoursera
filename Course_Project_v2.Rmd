@@ -1,0 +1,163 @@
+---
+title: "Course Project - Practical Machine Learning"
+author: "Wing Chum"
+date: "Jul 16, 2017"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+### Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+### Data
+
+Sources of the data used in this project http://groupware.les.inf.puc-rio.br/har.
+
+Training data: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+Test data: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+## Goal
+
+The goal of this project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. Through our analysis we may use any of the other variables to predict with. In this report, we will describe how we build the model and explain why we choose some variables over others. At the we will also use the prediction model to predict 20 different test cases.
+
+## Data Processing
+
+Lets load the mtcars data from RStudio.
+```{r data_processing}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(randomForest)
+library(e1071)
+library(knitr)
+
+## Set random seed to ensure reproducibility
+set.seed(12345)
+
+## URL for the data. Test data is what we used at the end for the 20 test cases
+training <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testing <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+##Loading the CSV
+trainingData <- read.csv(url(training), na.strings=c("NA","#DIV/0!",""))
+testingData <- read.csv(url(testing), na.strings=c("NA","#DIV/0!",""))
+```
+
+### Split the trining data set into Training and Test
+```{r build_training}
+inTrain <- createDataPartition(y=trainingData$classe, p=0.6, list=FALSE)
+
+## using the inverse to make sure no overlapping in the two data sets
+myTraining <- trainingData[inTrain,]
+myTesting <- trainingData[-inTrain,]
+
+## remove near zero variance variables from training and testing
+nzv <- nearZeroVar(myTraining, saveMetrics=TRUE)
+myTraining <- myTraining[,nzv$nzv==FALSE]
+
+nzv<- nearZeroVar(myTesting,saveMetrics=TRUE)
+myTesting <- myTesting[,nzv$nzv==FALSE]
+
+myTraining <- myTraining[c(-1)]
+```
+
+
+### Clean up the variables with more than 60% NA and  show how much training data we are left with
+```{r remove_NZA}
+trainingTemp <- myTraining
+for(i in 1:length(myTraining)) {
+    if( sum( is.na( myTraining[, i] ) ) /nrow(myTraining) >= .7) {
+        for(j in 1:length(trainingTemp)) {
+            if( length( grep(names(myTraining[i]), names(trainingTemp)[j]) ) == 1)  {
+                trainingTemp <- trainingTemp[ , -j]
+            }   
+        } 
+    }
+}
+
+# Set back to the original variable name
+myTraining <- trainingTemp
+rm(trainingTemp)
+
+dim(myTraining)
+```
+
+## Overlay the NZA to the testing data
+```{r apply_nza}
+clean1 <- colnames(myTraining)
+clean2 <- colnames(myTraining[,-58])
+
+myTesting <- myTesting[clean1]
+testing <- testing[clean2]
+
+## show how much testing data remaining
+dim(myTesting)
+
+##show how much final testing data remaining
+dim(testing)
+```
+
+## Reorder the data by type
+```{r reordering}
+for (i in 1:length(testing) ) {
+    for(j in 1:length(myTraining)) {
+        if( length( grep(names(myTraining[i]), names(testing)[j]) ) == 1)  {
+            class(testing[j]) <- class(myTraining[i])
+        }      
+    }      
+}
+
+testing <- rbind(myTraining[2, -58] , testing)
+testing <- testing[-1,]
+```
+
+##Prediction using Decision Trees
+```{r prediction_trees}
+set.seed(12345)
+modFitTraining <- rpart(classe ~ ., data=myTraining, method="class")
+fancyRpartPlot(modFitTraining)
+```
+
+###Apply the decision tree to the myTesting data
+```{r predicting_testing}
+predictionsTree <- predict(modFitTraining, myTesting, type = "class")
+cmtree <- confusionMatrix(predictionsTree, myTesting$classe)
+cmtree
+```
+
+### Accuracy from Decision Tree Confusion Matrix: 0.8789
+
+##Prediction using Random Forests
+```{r prediction_rndF}
+set.seed(12345)
+modFitRndForest <- randomForest(classe ~ ., data=myTraining)
+predictionRndForest <- predict(modFitRndForest, myTesting, type = "class")
+cmrf <- confusionMatrix(predictionRndForest, myTesting$classe)
+cmrf
+```
+
+### Accuracy from Random Forest Confusion Matrix: 0.9989
+
+##Choosing best prediction method
+Out of the 2 methods tested, Random Forests had overwhelming 99.89% accuracy.
+With about 0.1% error rate.
+
+Lets apply it to our test data for the final test.
+
+```{r prediction_final}
+predictionRndForest <- predict(modFitRndForest, testing, type = "class")
+predictionRndForest
+```
+
